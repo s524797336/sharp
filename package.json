@@ -74,7 +74,7 @@
   "main": "lib/index.js",
   "repository": {
     "type": "git",
-    "url": "git://github.com/lovell/sharp"
+    "url": "git://github.com/s524797336/sharp"
   },
   "keywords": [
     "jpeg",
