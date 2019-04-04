@@ -11,7 +11,6 @@ const simpleGet = require('simple-get');
 const tar = require('tar');
 const copyFileSync = require('fs-copy-file-sync');
 
-const agent = require('../lib/agent');
 const libvips = require('../lib/libvips');
 const platform = require('../lib/platform');
 
@@ -73,36 +72,46 @@ try {
     if (fs.existsSync(tarPathCache)) {
       npmLog.info('sharp', `Using cached ${tarPathCache}`);
       extractTarball(tarPathCache);
-    } else {
-      const tarPathTemp = path.join(os.tmpdir(), `${process.pid}-${tarFilename}`);
-      const tmpFile = fs.createWriteStream(tarPathTemp);
-      const url = distBaseUrl + tarFilename;
-      npmLog.info('sharp', `Downloading ${url}`);
-      simpleGet({ url: url, agent: agent() }, function (err, response) {
-        if (err) {
-          throw err;
-        }
-        if (response.statusCode !== 200) {
-          throw new Error(`Status ${response.statusCode}`);
-        }
-        response
-          .on('error', fail)
-          .pipe(tmpFile);
-      });
-      tmpFile
-        .on('error', fail)
-        .on('close', function () {
-          try {
-            // Attempt to rename
-            fs.renameSync(tarPathTemp, tarPathCache);
-          } catch (err) {
-            // Fall back to copy and unlink
-            copyFileSync(tarPathTemp, tarPathCache);
-            fs.unlinkSync(tarPathTemp);
-          }
-          extractTarball(tarPathCache);
-        });
+      return;
     }
+
+    if (process.env.LIBVIPS_CACHE_PATH) {
+      const userTarPathCache = path.join(process.cwd(), '../../../', process.env.LIBVIPS_CACHE_PATH, tarFilename);
+      if (fs.existsSync(userTarPathCache)) {
+        npmLog.info('sharp', `Using cached ${userTarPathCache}`);
+        extractTarball(userTarPathCache);
+        return;
+      }
+    }
+
+    const tarPathTemp = path.join(os.tmpdir(), `${process.pid}-${tarFilename}`);
+    const tmpFile = fs.createWriteStream(tarPathTemp);
+    const url = distBaseUrl + tarFilename;
+    npmLog.info('sharp', `Downloading ${url}`);
+    simpleGet({ url: url }, function (err, response) {
+      if (err) {
+        throw err;
+      }
+      if (response.statusCode !== 200) {
+        throw new Error(`Status ${response.statusCode}`);
+      }
+      response
+        .on('error', fail)
+        .pipe(tmpFile);
+    });
+    tmpFile
+      .on('error', fail)
+      .on('close', function () {
+        try {
+          // Attempt to rename
+          fs.renameSync(tarPathTemp, tarPathCache);
+        } catch (err) {
+          // Fall back to copy and unlink
+          copyFileSync(tarPathTemp, tarPathCache);
+          fs.unlinkSync(tarPathTemp);
+        }
+        extractTarball(tarPathCache);
+      });
   }
 } catch (err) {
   fail(err);
